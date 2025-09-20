@@ -729,7 +729,7 @@ def prequential_grid_search(transactions_df,
                                                delta_delay=delta_delay,
                                                delta_assessment=delta_assessment)
 
-    grid_search = sklearn.model_selection.GridSearchCV(pipe, parameters, scoring=scoring, cv=prequential_split_indices, refit=False, n_jobs=n_jobs)
+    grid_search = sklearn.model_selection.GridSearchCV(pipe, parameters, scoring=scoring, cv=prequential_split_indices, refit=False, n_jobs=n_jobs, verbose=3)
 
     X=transactions_df[input_features]
     y=transactions_df[output_feature]
