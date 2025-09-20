@@ -1277,7 +1277,7 @@ class EarlyStopping:
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
-        self.best_score = np.Inf
+        self.best_score = np.inf
 
     def continue_training(self,current_score):
         if self.best_score > current_score:
