@@ -715,8 +715,18 @@ def prequential_grid_search(transactions_df,
                             delta_train=7,
                             delta_delay=7,
                             delta_assessment=7,
-                            performance_metrics_list_grid=['roc_auc'],
-                            performance_metrics_list=['AUC ROC'],
+                            performance_metrics_list_grid=['roc_auc',
+                                                            'average_precision', 
+                                                            'card_precision@100',
+                                                            'precision',
+                                                            'recall', 
+                                                            'f1_score'],
+                            performance_metrics_list=['AUC ROC', 
+                                                      'Average precision', 
+                                                      'Card Precision@100',
+                                                      'Precision',
+                                                      'Recall',
+                                                      'F1 Score'],
                             n_jobs=-1):
 
     estimators = [('scaler', sklearn.preprocessing.StandardScaler()), ('clf', classifier)]
@@ -763,8 +773,18 @@ def model_selection_wrapper(transactions_df,
                             delta_train=7,
                             delta_delay=7,
                             delta_assessment=7,
-                            performance_metrics_list_grid=['roc_auc'],
-                            performance_metrics_list=['AUC ROC'],
+                            performance_metrics_list_grid=['roc_auc',
+                                                            'average_precision', 
+                                                            'card_precision@100',
+                                                            'precision',
+                                                            'recall', 
+                                                            'f1_score'],
+                            performance_metrics_list=['AUC ROC', 
+                                                      'Average precision', 
+                                                      'Card Precision@100',
+                                                      'Precision',
+                                                      'Recall',
+                                                      'F1 Score'],
                             n_jobs=-1):
 
     # Get performances on the validation set using prequential validation
@@ -816,9 +836,12 @@ def kfold_cv_with_classifier(classifier,
     cv = sklearn.model_selection.StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=0)
 
     cv_results_=sklearn.model_selection.cross_validate(classifier,X,y,cv=cv,
-                                                       scoring=['roc_auc',
+                                                       scoring= ['roc_auc',
                                                                 'average_precision',
-                                                                'balanced_accuracy'],
+                                                                'card_precision@100',
+                                                                'precision', 
+                                                                'recall', 
+                                                                'f1_score'],
                                                        return_estimator=True)
 
     results=round(pd.DataFrame(cv_results_),3)
@@ -986,7 +1009,12 @@ First use in [Chapter 5, Validation Strategies](Validation_Strategies).
 
 # Get the performance plots for a set of performance metric
 def get_performances_plots(performances_df,
-                           performance_metrics_list=['AUC ROC', 'Average precision', 'Card Precision@100'],
+                            performance_metrics_list=['AUC ROC', 
+                                                      'Average precision', 
+                                                      'Card Precision@100',
+                                                      'Precision',
+                                                      'Recall',
+                                                      'F1 Score'],
                            expe_type_list=['Test','Train'], expe_type_color_list=['#008000','#2F4D7E'],
                            parameter_name="Tree maximum depth",
                            summary_performances=None):
@@ -1090,7 +1118,12 @@ First use in [Chapter 5, Model Selection](Model_Selection).
 """
 
 def get_model_selection_performances_plots(performances_df_dictionary,
-                                           performance_metrics_list=['AUC ROC', 'Average precision', 'Card Precision@100'],
+                                           performance_metrics_list=['AUC ROC', 
+                                                                    'Average precision', 
+                                                                    'Card Precision@100',
+                                                                    'Precision',
+                                                                    'Recall',
+                                                                    'F1 Score'],
                                            ylim_list=[[0.6,0.9],[0.2,0.8],[0.2,0.35]],
                                            model_classes=['Decision Tree',
                                                           'Logistic Regression',
@@ -1580,3 +1613,88 @@ class Attention(torch.nn.Module):
         output = F.tanh(self.linear_out(combined.view(-1, 2 * hidden_size))).view(batch_size, -1, hidden_size)
 
         return output, attn
+
+# Métricas adicionais precisão, recall e f1score do scikitLearning
+
+from sklearn.metrics import precision_score, recall_score, f1_score, make_scorer, precision_recall_curve
+import numpy as np
+
+def precision_custom(y_true, y_pred, **kwargs):
+    """
+    Precision customizada para classificação binária com threshold otimizado
+    """
+    precisions, recalls, thresholds = precision_recall_curve(y_true, y_pred)
+    
+    f1_scores = 2 * (precisions * recalls) / (precisions + recalls)
+    f1_scores = np.nan_to_num(f1_scores)  # Tratar divisão por zero
+    
+    optimal_idx = np.argmax(f1_scores)
+    optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    y_pred_classes = (y_pred >= optimal_threshold).astype(int)
+    
+    return precision_score(y_true, y_pred_classes)
+
+def recall_custom(y_true, y_pred, **kwargs):
+    """
+    Recall/Sensitivity customizada para classificação binária com threshold otimizado
+    """
+    precisions, recalls, thresholds = precision_recall_curve(y_true, y_pred)
+    
+    f1_scores = 2 * (precisions * recalls) / (precisions + recalls)
+    f1_scores = np.nan_to_num(f1_scores)  # Tratar divisão por zero
+    
+    optimal_idx = np.argmax(f1_scores)
+    optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    y_pred_classes = (y_pred >= optimal_threshold).astype(int)
+    
+    return recall_score(y_true, y_pred_classes)
+
+def f1_custom(y_true, y_pred, **kwargs):
+    """
+    F1-Score customizado para classificação binária com threshold otimizado
+    """
+    precisions, recalls, thresholds = precision_recall_curve(y_true, y_pred)
+    
+    f1_scores = 2 * (precisions * recalls) / (precisions + recalls)
+    f1_scores = np.nan_to_num(f1_scores)  # Tratar divisão por zero
+    
+    return np.max(f1_scores)
+
+def sensitivity_custom(y_true, y_pred, **kwargs):
+    """
+    Sensitivity (mesmo que Recall) customizada para classificação binária
+    """
+    return recall_custom(y_true, y_pred)
+
+def specificity_custom(y_true, y_pred, **kwargs):
+    """
+    Specificity customizada para classificação binária com threshold otimizado
+    """
+    from sklearn.metrics import confusion_matrix
+    
+    precisions, recalls, thresholds = precision_recall_curve(y_true, y_pred)
+    
+    f1_scores = 2 * (precisions * recalls) / (precisions + recalls)
+    f1_scores = np.nan_to_num(f1_scores)  # Tratar divisão por zero
+    
+    optimal_idx = np.argmax(f1_scores)
+    optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    y_pred_classes = (y_pred >= optimal_threshold).astype(int)
+    
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred_classes).ravel()
+    
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+    
+    return specificity
+
+# ============================================================================
+# EXECUÇÃO DO GRID SEARCH COM AS NOVAS MÉTRICAS
+# ============================================================================
+
+# Criar os scorers customizados
+precision_scorer = make_scorer(precision_custom, needs_proba=True)
+recall_scorer = make_scorer(recall_custom, needs_proba=True)
+f1_scorer = make_scorer(f1_custom, needs_proba=True)
