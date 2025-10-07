@@ -63,30 +63,13 @@ warnings.filterwarnings('ignore')
 
 """## Loading and saving data
 
-### read_from_files
+read_kaggle_creditcard
 
-First use in [Chapter 3, Baseline Feature Transformation](Baseline_Feature_Transformation).
 """
-
-# Load a set of pickle files, put them together in a single DataFrame, and order them by time
-# It takes as input the folder DIR_INPUT where the files are stored, and the BEGIN_DATE and END_DATE
-def read_from_files(DIR_INPUT, BEGIN_DATE, END_DATE):
-
-    files = [os.path.join(DIR_INPUT, f) for f in os.listdir(DIR_INPUT) if f>=BEGIN_DATE+'.pkl' and f<=END_DATE+'.pkl']
-
-    frames = []
-    for f in files:
-        df = pd.read_pickle(f)
-        frames.append(df)
-        del df
-    df_final = pd.concat(frames)
-
-    df_final=df_final.sort_values('TRANSACTION_ID')
-    df_final.reset_index(drop=True,inplace=True)
-    #  Note: -1 are missing values for real world data
-    df_final=df_final.replace([-1],0)
-
-    return df_final
+def read_kaggle_creditcard(filepath):
+    """Carrega o dataset de fraude de cartão do Kaggle"""
+    df = pd.read_csv(filepath)
+    return df
 
 """### save_object
 
@@ -105,6 +88,7 @@ First use in [Chapter 3, Baseline Fraud Detection System](Baseline_FDS).
 """
 
 def scaleData(train,test,features):
+    """Normalização dos dados"""
     scaler = sklearn.preprocessing.StandardScaler()
     scaler.fit(train[features])
     train[features]=scaler.transform(train[features])
@@ -120,63 +104,16 @@ First use in [Chapter 3, Baseline Fraud Detection System](Baseline_FDS).
 Sampling ratio added in [Chapter 5, Validation Strategies](Validation_Strategies).
 """
 
-def get_train_test_set(transactions_df,
-                       start_date_training,
-                       delta_train=7,delta_delay=7,delta_test=7,
-                       sampling_ratio=1.0,
-                       random_state=0):
+def get_train_test_set_kaggle(df, test_size=0.3, random_state=42):
+    """Split simples para dataset do Kaggle"""
+    X = df.drop("Class", axis=1)
+    y = df["Class"]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, stratify=y, random_state=random_state
+    )
+    return X_train, X_test, y_train, y_test
 
-    # Get the training set data
-    train_df = transactions_df[(transactions_df.TX_DATETIME>=start_date_training) &
-                               (transactions_df.TX_DATETIME<start_date_training+datetime.timedelta(days=delta_train))]
-
-    # Get the test set data
-    test_df = []
-
-    # Note: Cards known to be compromised after the delay period are removed from the test set
-    # That is, for each test day, all frauds known at (test_day-delay_period) are removed
-
-    # First, get known defrauded customers from the training set
-    known_defrauded_customers = set(train_df[train_df.TX_FRAUD==1].CUSTOMER_ID)
-
-    # Get the relative starting day of training set (easier than TX_DATETIME to collect test data)
-    start_tx_time_days_training = train_df.TX_TIME_DAYS.min()
-
-    # Then, for each day of the test set
-    for day in range(delta_test):
-
-        # Get test data for that day
-        test_df_day = transactions_df[transactions_df.TX_TIME_DAYS==start_tx_time_days_training+
-                                                                    delta_train+delta_delay+
-                                                                    day]
-
-        # Compromised cards from that test day, minus the delay period, are added to the pool of known defrauded customers
-        test_df_day_delay_period = transactions_df[transactions_df.TX_TIME_DAYS==start_tx_time_days_training+
-                                                                                delta_train+
-                                                                                day-1]
-
-        new_defrauded_customers = set(test_df_day_delay_period[test_df_day_delay_period.TX_FRAUD==1].CUSTOMER_ID)
-        known_defrauded_customers = known_defrauded_customers.union(new_defrauded_customers)
-
-        test_df_day = test_df_day[~test_df_day.CUSTOMER_ID.isin(known_defrauded_customers)]
-
-        test_df.append(test_df_day)
-
-    test_df = pd.concat(test_df)
-
-    # If subsample
-    if sampling_ratio<1:
-
-        train_df_frauds=train_df[train_df.TX_FRAUD==1].sample(frac=sampling_ratio, random_state=random_state)
-        train_df_genuine=train_df[train_df.TX_FRAUD==0].sample(frac=sampling_ratio, random_state=random_state)
-        train_df=pd.concat([train_df_frauds,train_df_genuine])
-
-    # Sort data sets by ascending order of transaction ID
-    train_df=train_df.sort_values('TRANSACTION_ID')
-    test_df=test_df.sort_values('TRANSACTION_ID')
-
-    return (train_df, test_df)
-
+    
 def get_train_delay_test_set(transactions_df,
                              start_date_training,
                              delta_train=7,delta_delay=7,delta_test=7,
@@ -315,107 +252,21 @@ def fit_model_and_get_predictions(classifier, train_df, test_df,
 
 """## Performance assessment
 
-### card_precision_top_k_day
-
-First use in [Chapter 3, Baseline Fraud Detection System](Baseline_FDS).
-Detailed in [Chapter 4, Precision_top_K_Metrics](Precision_Top_K_Metrics).
-"""
-
-def card_precision_top_k_day(df_day,top_k):
-
-    # This takes the max of the predictions AND the max of label TX_FRAUD for each CUSTOMER_ID,
-    # and sorts by decreasing order of fraudulent prediction
-    df_day = df_day.groupby('CUSTOMER_ID').max().sort_values(by="predictions", ascending=False).reset_index(drop=False)
-
-    # Get the top k most suspicious cards
-    df_day_top_k=df_day.head(top_k)
-    list_detected_compromised_cards=list(df_day_top_k[df_day_top_k.TX_FRAUD==1].CUSTOMER_ID)
-
-    # Compute precision top k
-    card_precision_top_k = len(list_detected_compromised_cards) / top_k
-
-    return list_detected_compromised_cards, card_precision_top_k
-
-"""### card_precision_top_k
-
-First use in [Chapter 3, Baseline Fraud Detection System](Baseline_FDS).
-Detailed in [Chapter 4, Precision_top_K_Metrics](Precision_Top_K_Metrics).
-"""
-
-def card_precision_top_k(predictions_df, top_k, remove_detected_compromised_cards=True):
-
-    # Sort days by increasing order
-    list_days=list(predictions_df['TX_TIME_DAYS'].unique())
-    list_days.sort()
-
-    # At first, the list of detected compromised cards is empty
-    list_detected_compromised_cards = []
-
-    card_precision_top_k_per_day_list = []
-    nb_compromised_cards_per_day = []
-
-    # For each day, compute precision top k
-    for day in list_days:
-
-        df_day = predictions_df[predictions_df['TX_TIME_DAYS']==day]
-        df_day = df_day[['predictions', 'CUSTOMER_ID', 'TX_FRAUD']]
-
-        # Let us remove detected compromised cards from the set of daily transactions
-        df_day = df_day[df_day.CUSTOMER_ID.isin(list_detected_compromised_cards)==False]
-
-        nb_compromised_cards_per_day.append(len(df_day[df_day.TX_FRAUD==1].CUSTOMER_ID.unique()))
-
-        detected_compromised_cards, card_precision_top_k = card_precision_top_k_day(df_day,top_k)
-
-        card_precision_top_k_per_day_list.append(card_precision_top_k)
-
-        # Let us update the list of detected compromised cards
-        if remove_detected_compromised_cards:
-            list_detected_compromised_cards.extend(detected_compromised_cards)
-
-    # Compute the mean
-    mean_card_precision_top_k = np.array(card_precision_top_k_per_day_list).mean()
-
-    # Returns precision top k per day as a list, and resulting mean
-    return nb_compromised_cards_per_day,card_precision_top_k_per_day_list,mean_card_precision_top_k
-
-"""### card_precision_top_k_custom
-
-First use in [Chapter 5, Validation Strategies](Validation_Strategies).
-"""
-
-def card_precision_top_k_custom(y_true, y_pred, top_k, transactions_df, **kwargs):
-
-    # Let us create a predictions_df DataFrame, that contains all transactions matching the indices of the current fold
-    # (indices of the y_true vector)
-    predictions_df=transactions_df.iloc[y_true.index.values].copy()
-    predictions_df['predictions']=y_pred
-
-    # Compute the CP@k using the function implemented in Chapter 4, Section 4.2
-    nb_compromised_cards_per_day,card_precision_top_k_per_day_list,mean_card_precision_top_k=        card_precision_top_k(predictions_df, top_k)
-
-    # Return the mean_card_precision_top_k
-    return mean_card_precision_top_k
-
-"""### performance_assessment
-
 First use in [Chapter 3, Baseline Fraud Detection System](Baseline_FDS).
 """
 
-def performance_assessment(predictions_df, output_feature='TX_FRAUD',
-                           prediction_feature='predictions', top_k_list=[100],
+def performance_assessment(predictions_df, output_feature='Class',
+                           prediction_feature='predictions',
                            rounded=True):
 
     AUC_ROC = metrics.roc_auc_score(predictions_df[output_feature], predictions_df[prediction_feature])
     AP = metrics.average_precision_score(predictions_df[output_feature], predictions_df[prediction_feature])
+    F1_SCORE = f1_custom(predictions_df[output_feature], predictions_df[prediction_feature])
+    PRECISION = precision_custom(predictions_df[output_feature], predictions_df[prediction_feature])
+    RECALL = recall_custom(predictions_df[output_feature], predictions_df[prediction_feature])
 
-    performances = pd.DataFrame([[AUC_ROC, AP]],
-                           columns=['AUC ROC','Average precision'])
-
-    for top_k in top_k_list:
-
-        _, _, mean_card_precision_top_k = card_precision_top_k(predictions_df, top_k)
-        performances['Card Precision@'+str(top_k)]=mean_card_precision_top_k
+    performances = pd.DataFrame([[AUC_ROC, AP, PRECISION, RECALL, F1_SCORE]],
+                           columns=['AUC ROC','Average precision', 'precision', 'recall (sensibility)', 'f1 Score'])
 
     if rounded:
         performances = performances.round(3)
