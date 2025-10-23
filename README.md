@@ -9,7 +9,10 @@
 - CuML RAPIDS  -> cuml.ensemble.RandomForestClassifier
 
 ## FeedFoward Neural Network FNN
-- MLP com Torch
+- biblioteca Torch
+- MLP com dropout e EarlyStopping de monitoramento de perda na validação
+
 
 ## Base de dados e Preparação
-- 
+fonte: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
+- Aplicação do SMOTE-ENN (sobreamostragem e subamostrem) em conjuntos novos de treinamento com proporções 10:90 e 50:50
