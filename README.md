@@ -1,8 +1,8 @@
 # modelos fraudes cartão de crédito
 
 ## Logistic Regression LR
-- Scikit Learn -> cuml.linear_model.LogisticRegression
-- CuML RAPIDS -> sklearn.linear_model.LogisticRegression
+- Scikit Learn -> sklearn.linear_model.LogisticRegression
+- CuML RAPIDS -> cuml.linear_model.LogisticRegression
 
 ## Random Forest RF
 - Scikit Learn -> sklearn.ensemble.RandomForestClassifier
